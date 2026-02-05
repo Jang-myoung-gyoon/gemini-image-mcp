@@ -1,0 +1,9 @@
+mcp[cli]>=1.0.0
+google-genai>=1.0.0
+opencv-python-headless>=4.8.0
+rembg>=2.0.50
+pymatting>=1.1.12
+scikit-image>=0.21.0
+Pillow>=10.0.0
+numpy>=1.24.0
+python-dotenv>=1.0.0
