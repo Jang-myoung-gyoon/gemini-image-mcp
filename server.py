@@ -9,6 +9,7 @@ Provides tools for single and batch image generation:
 
 import io
 import json
+import mimetypes
 import os
 from pathlib import Path
 
@@ -35,12 +36,47 @@ def _get_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
-def _generate_image(prompt: str) -> Image.Image:
+def _get_reference_part(reference_image_path: str) -> types.Part:
+    """Create an inline Gemini image part from a local file path."""
+    path = Path(reference_image_path).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Reference image not found: {path}")
+
+    mime_type, _ = mimetypes.guess_type(path.name)
+    return types.Part.from_bytes(
+        data=path.read_bytes(),
+        mime_type=mime_type or "image/png",
+    )
+
+
+def _build_contents(
+    prompt: str,
+    reference_image_path: str | None = None,
+) -> str | list[types.Part]:
+    """Build Gemini contents with optional text + reference image."""
+    if not reference_image_path:
+        return prompt
+
+    reference_prompt = (
+        "Use the attached reference image as the visual anchor. Preserve the "
+        "same subject, style, proportions, and overall composition unless the "
+        f"prompt explicitly asks for a change.\n\n{prompt}"
+    )
+    return [
+        types.Part.from_text(text=reference_prompt),
+        _get_reference_part(reference_image_path),
+    ]
+
+
+def _generate_image(
+    prompt: str,
+    reference_image_path: str | None = None,
+) -> Image.Image:
     """Call Gemini API to generate an image and return it as a PIL Image."""
     client = _get_client()
     response = client.models.generate_content(
         model="gemini-2.5-flash-image",
-        contents=prompt,
+        contents=_build_contents(prompt, reference_image_path),
         config=types.GenerateContentConfig(
             response_modalities=["TEXT", "IMAGE"],
         ),
@@ -60,12 +96,20 @@ def _generate_image(prompt: str) -> Image.Image:
     )
 
 
-_rembg_session = new_session("birefnet-general")
+_rembg_session = None
+
+
+def _get_rembg_session():
+    """Lazily initialize rembg session to avoid slow MCP startup."""
+    global _rembg_session
+    if _rembg_session is None:
+        _rembg_session = new_session("birefnet-general")
+    return _rembg_session
 
 
 def _remove_background(image: Image.Image) -> Image.Image:
     """Remove background from an image using rembg (birefnet-general)."""
-    result = remove(image, session=_rembg_session)
+    result = remove(image, session=_get_rembg_session())
     return _trim_transparent(result)
 
 
@@ -102,7 +146,11 @@ def _save_raw(image: Image.Image, output_path: Path) -> Path:
 
 
 @mcp.tool()
-def generate_background_image(prompt: str, output_path: str) -> str:
+def generate_background_image(
+    prompt: str,
+    output_path: str,
+    reference_image_path: str | None = None,
+) -> str:
     """Generate an image using Gemini API and save as PNG.
 
     IMPORTANT: Each API call costs money. Before calling this tool,
@@ -111,11 +159,13 @@ def generate_background_image(prompt: str, output_path: str) -> str:
     Args:
         prompt: Text description of the image to generate.
         output_path: File path where the PNG image will be saved.
+        reference_image_path: Optional local image path to preserve as a
+            visual reference while applying prompt changes.
 
     Returns:
         A message indicating success and the saved file path.
     """
-    image = _generate_image(prompt)
+    image = _generate_image(prompt, reference_image_path)
     path = _ensure_directory(output_path)
     image.save(str(path), "PNG")
     return f"Image saved to {path} ({image.width}x{image.height})"
@@ -125,7 +175,11 @@ _WHITE_BG_SUFFIX = " The subject must be on a plain solid white background."
 
 
 @mcp.tool()
-def generate_transparent_image(prompt: str, output_path: str) -> str:
+def generate_transparent_image(
+    prompt: str,
+    output_path: str,
+    reference_image_path: str | None = None,
+) -> str:
     """Generate an image using Gemini API with background removal.
 
     The generated image has its background removed using rembg
@@ -139,11 +193,16 @@ def generate_transparent_image(prompt: str, output_path: str) -> str:
     Args:
         prompt: Text description of the image to generate.
         output_path: File path where the transparent PNG will be saved.
+        reference_image_path: Optional local image path to preserve as a
+            visual reference while applying prompt changes.
 
     Returns:
         A message indicating success and the saved file path.
     """
-    image = _generate_image(prompt + _WHITE_BG_SUFFIX)
+    image = _generate_image(
+        prompt + _WHITE_BG_SUFFIX,
+        reference_image_path,
+    )
     path = _ensure_directory(output_path)
     raw_path = _save_raw(image, path)
     transparent = _remove_background(image)
@@ -179,8 +238,9 @@ def batch_generate_background_images(items_json: str) -> str:
     for i, item in enumerate(items, 1):
         prompt = item["prompt"]
         output_path = item["output_path"]
+        reference_image_path = item.get("reference_image_path")
         try:
-            image = _generate_image(prompt)
+            image = _generate_image(prompt, reference_image_path)
             path = _ensure_directory(output_path)
             image.save(str(path), "PNG")
             results.append(
@@ -220,8 +280,12 @@ def batch_generate_transparent_images(items_json: str) -> str:
     for i, item in enumerate(items, 1):
         prompt = item["prompt"]
         output_path = item["output_path"]
+        reference_image_path = item.get("reference_image_path")
         try:
-            image = _generate_image(prompt + _WHITE_BG_SUFFIX)
+            image = _generate_image(
+                prompt + _WHITE_BG_SUFFIX,
+                reference_image_path,
+            )
             path = _ensure_directory(output_path)
             raw_path = _save_raw(image, path)
             transparent = _remove_background(image)
