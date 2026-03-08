@@ -118,6 +118,7 @@ generate_transparent_image(
 - Each API call costs money. The tools will remind you to confirm before generating.
 - `reference_image_path` is optional on single-image tools and on each batch
   item.
+- When generating a variant of an existing character, always pass the character's raw base image as the reference_image_path if a raw source exists. Do not use a cropped or already-processed derivative as the reference in that case.
 - Transparent image generation uses the birefnet-general model for background removal.
 - The raw Gemini output is saved alongside transparent images (as `*_raw.png`).
 

@@ -160,7 +160,9 @@ def generate_background_image(
         prompt: Text description of the image to generate.
         output_path: File path where the PNG image will be saved.
         reference_image_path: Optional local image path to preserve as a
-            visual reference while applying prompt changes.
+            visual reference while applying prompt changes. When generating
+            a variant of an existing character, always use the character's
+            raw base image here if one exists.
 
     Returns:
         A message indicating success and the saved file path.
@@ -194,7 +196,9 @@ def generate_transparent_image(
         prompt: Text description of the image to generate.
         output_path: File path where the transparent PNG will be saved.
         reference_image_path: Optional local image path to preserve as a
-            visual reference while applying prompt changes.
+            visual reference while applying prompt changes. When generating
+            a variant of an existing character, always use the character's
+            raw base image here if one exists.
 
     Returns:
         A message indicating success and the saved file path.
@@ -224,7 +228,9 @@ def batch_generate_background_images(items_json: str) -> str:
 
     Args:
         items_json: A JSON array of objects, each with "prompt" and
-            "output_path" keys.
+            "output_path" keys. When generating a variant of an
+            existing character, each item should use the character's
+            raw base image as reference_image_path if one exists.
             Example: [
               {"prompt": "a castle on a hill", "output_path": "/tmp/castle.png"},
               {"prompt": "a forest at dawn", "output_path": "/tmp/forest.png"}
@@ -266,7 +272,9 @@ def batch_generate_transparent_images(items_json: str) -> str:
 
     Args:
         items_json: A JSON array of objects, each with "prompt" and
-            "output_path" keys.
+            "output_path" keys. When generating a variant of an
+            existing character, each item should use the character's
+            raw base image as reference_image_path if one exists.
             Example: [
               {"prompt": "a warrior holding a sword", "output_path": "/tmp/warrior.png"},
               {"prompt": "an archer drawing a bow", "output_path": "/tmp/archer.png"}
