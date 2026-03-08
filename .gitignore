@@ -1,11 +1,16 @@
 # Virtual environment
+.venv
 .venv/
+.venv_py311_backup_20260227/
 venv/
 env/
 ENV/
 
 # Environment variables
 .env
+
+# Local logs
+firebase-debug.log
 
 # Python cache
 __pycache__/
